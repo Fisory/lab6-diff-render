@@ -1,0 +1,25 @@
+[project]
+name = "lab6-diff-render"
+version = "0.1.0"
+description = "实验六：可微光栅化——从球体到奶牛"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "torch==2.4.0",
+    "torchvision==0.19.0",
+    "numpy",
+    "matplotlib",
+    "tqdm",
+    "imageio",
+    "Pillow",
+    "scipy",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }
