@@ -53,6 +53,7 @@ CFG = {
     "save_dir":        "output/texture",
     "save_interval":   100,
     "gif_fps":         3,
+    "vis_views":       [0, 5, 10, 15],
 }
 
 
@@ -94,38 +95,45 @@ def render_rgb(mesh, cameras, renderer):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def save_frames(step, num_iter, target_sil, vis_sil, target_rgb, vis_rgb,
-                loss_info, save_dir):
-    """同时保存剪影对比帧和 RGB 对比帧，返回两个路径。"""
+                loss_info, save_dir, vis_views=None):
+    """同时保存多视角剪影对比帧和 RGB 对比帧，返回两个路径。"""
+    if vis_views is None:
+        vis_views = [0]
+    n = len(vis_views)
     title = (
-        f"Step {step}/{num_iter} | "
-        f"Loss: {loss_info['total']:.4f} | "
-        f"Sil: {loss_info['sil']:.4f} | "
-        f"RGB: {loss_info['rgb']:.4f}"
+        f"Step {step}/{num_iter}  |  Loss: {loss_info['total']:.4f}  |  "
+        f"Sil: {loss_info['sil']:.4f}  |  RGB: {loss_info['rgb']:.4f}"
     )
 
-    # 剪影对比
-    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-    fig.suptitle(title)
-    axes[0].imshow(target_sil[0].cpu().numpy(), cmap="gray")
-    axes[0].set_title("Target Silhouette")
-    axes[0].axis("off")
-    axes[1].imshow(vis_sil[0].cpu().numpy(), cmap="gray")
-    axes[1].set_title(f"Predicted Silhouette (Step {step})")
-    axes[1].axis("off")
+    # 剪影对比（多视角）
+    fig, axes = plt.subplots(2, n, figsize=(4 * n, 8))
+    if n == 1:
+        axes = axes[:, None]
+    fig.suptitle(title, fontsize=11)
+    for col, vi in enumerate(vis_views):
+        axes[0, col].imshow(target_sil[vi].cpu().numpy(), cmap="gray")
+        axes[0, col].set_title(f"Target Sil (view {vi})", fontsize=9)
+        axes[0, col].axis("off")
+        axes[1, col].imshow(vis_sil[vi].cpu().numpy(), cmap="gray")
+        axes[1, col].set_title(f"Predicted (view {vi})", fontsize=9)
+        axes[1, col].axis("off")
     plt.tight_layout()
     p_sil = os.path.join(save_dir, f"sil_{step:04d}.png")
     plt.savefig(p_sil, dpi=100, bbox_inches="tight")
     plt.close()
 
-    # RGB 对比
-    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-    fig.suptitle(title)
-    axes[0].imshow(target_rgb[0].cpu().clamp(0, 1).numpy())
-    axes[0].set_title("Target RGB")
-    axes[0].axis("off")
-    axes[1].imshow(vis_rgb[0].cpu().clamp(0, 1).numpy())
-    axes[1].set_title(f"Optimized RGB (Step {step})")
-    axes[1].axis("off")
+    # RGB 对比（多视角）
+    fig, axes = plt.subplots(2, n, figsize=(4 * n, 8))
+    if n == 1:
+        axes = axes[:, None]
+    fig.suptitle(title, fontsize=11)
+    for col, vi in enumerate(vis_views):
+        axes[0, col].imshow(target_rgb[vi].cpu().clamp(0, 1).numpy())
+        axes[0, col].set_title(f"Target RGB (view {vi})", fontsize=9)
+        axes[0, col].axis("off")
+        axes[1, col].imshow(vis_rgb[vi].cpu().clamp(0, 1).numpy())
+        axes[1, col].set_title(f"Optimized (view {vi})", fontsize=9)
+        axes[1, col].axis("off")
     plt.tight_layout()
     p_rgb = os.path.join(save_dir, f"rgb_{step:04d}.png")
     plt.savefig(p_rgb, dpi=100, bbox_inches="tight")
@@ -257,6 +265,7 @@ def main():
                 target_rgb, vis_rgb,
                 {"total": loss_total.item(), "sil": loss_sil.item(), "rgb": loss_rgb.item()},
                 CFG["save_dir"],
+                vis_views=CFG["vis_views"],
             )
             frames_sil.append(p_sil)
             frames_rgb.append(p_rgb)

@@ -35,7 +35,7 @@ CFG = {
     "num_views":       20,      # 参与优化的相机视角数
     "image_size":      128,     # 渲染分辨率（越大越慢）
     "sphere_level":    4,       # ico_sphere 细分等级：4 → 2562 顶点 / 5120 面
-    "num_iter":        300,     # 优化迭代总步数
+    "num_iter":        500,     # 优化迭代总步数（更多步数收敛更充分）
     "lr":              1e-2,    # Adam 初始学习率
     "sigma":           1e-4,    # 软光栅化模糊参数 σ
     "faces_per_pixel": 50,      # 每像素最多覆盖的三角面数
@@ -45,6 +45,7 @@ CFG = {
     "save_dir":        "output/silhouette",
     "save_interval":   50,      # 每隔多少步保存一帧可视化
     "gif_fps":         5,
+    "vis_views":       [0, 5, 10, 15],  # 可视化时展示的视角索引（4 个代表性方向）
 }
 
 
@@ -67,21 +68,27 @@ def render_silhouettes(mesh, cameras, renderer):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def save_comparison_frame(
-    step, num_iter, target_sil, pred_sil, loss_total, loss_sil, save_dir
+    step, num_iter, target_sil, pred_sil, loss_total, loss_sil, save_dir,
+    vis_views=None,
 ):
-    """保存 Ground Truth vs Optimizing 的对比图，与参考效果风格一致。"""
-    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+    """保存多视角 Ground Truth vs Optimizing 对比图。"""
+    if vis_views is None:
+        vis_views = [0]
+    n = len(vis_views)
+    fig, axes = plt.subplots(2, n, figsize=(4 * n, 8))
+    if n == 1:
+        axes = axes[:, None]
     fig.suptitle(
-        f"迭代步数: {step}/{num_iter} | "
-        f"总 Loss: {loss_total:.4f} | "
-        f"剪影误差: {loss_sil:.4f}"
+        f"Step {step}/{num_iter}  |  Total Loss: {loss_total:.4f}  |  Sil Loss: {loss_sil:.4f}",
+        fontsize=12,
     )
-    axes[0].imshow(target_sil[0].detach().cpu().numpy(), cmap="gray")
-    axes[0].set_title("Ground Truth Silhouette")
-    axes[0].axis("off")
-    axes[1].imshow(pred_sil[0].detach().cpu().numpy(), cmap="gray")
-    axes[1].set_title(f"Optimizing... (Epoch {step})")
-    axes[1].axis("off")
+    for col, vi in enumerate(vis_views):
+        axes[0, col].imshow(target_sil[vi].detach().cpu().numpy(), cmap="gray")
+        axes[0, col].set_title(f"Target  (view {vi})", fontsize=9)
+        axes[0, col].axis("off")
+        axes[1, col].imshow(pred_sil[vi].detach().cpu().numpy(), cmap="gray")
+        axes[1, col].set_title(f"Predicted (view {vi})", fontsize=9)
+        axes[1, col].axis("off")
     plt.tight_layout()
     path = os.path.join(save_dir, f"frame_{step:04d}.png")
     plt.savefig(path, dpi=100, bbox_inches="tight")
@@ -141,8 +148,8 @@ def main():
     deform_verts = torch.zeros((n_verts, 3), device=device, requires_grad=True)
 
     optimizer = torch.optim.Adam([deform_verts], lr=CFG["lr"])
-    # 每 100 步学习率减半，避免后期震荡
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.5)
+    # 每 150 步学习率减半（适配 500 步迭代）
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=150, gamma=0.5)
 
     # 4. 优化主循环 ───────────────────────────────────────────────────────────
     print(f"[4/5] 开始优化（{CFG['num_iter']} 步）...\n")
@@ -193,6 +200,7 @@ def main():
                 target_silhouettes, vis_sil,
                 loss_total.item(), loss_sil.item(),
                 CFG["save_dir"],
+                vis_views=CFG["vis_views"],
             )
             frames.append(path)
 

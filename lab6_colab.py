@@ -121,12 +121,13 @@ print('工具函数就绪')
 # ─────────────────────────────────────────────────────────────────────────────
 NUM_VIEWS   = 20
 IMAGE_SIZE  = 128
-NUM_ITER    = 300
+NUM_ITER    = 500
 LR          = 1e-2
 SIGMA       = 1e-4
 W_LAP       = 0.1
 W_EDGE      = 1.0
 W_NORMAL    = 0.01
+VIS_VIEWS   = [0, 5, 10, 15]   # 可视化时展示的 4 个代表性视角
 SAVE_DIR    = 'output/silhouette'
 os.makedirs(SAVE_DIR, exist_ok=True)
 
@@ -164,7 +165,7 @@ print(f'球体: {n_verts} 顶点, {src_mesh.faces_packed().shape[0]} 面')
 
 deform_verts = torch.zeros((n_verts, 3), device=device, requires_grad=True)
 optimizer    = torch.optim.Adam([deform_verts], lr=LR)
-scheduler    = torch.optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.5)
+scheduler    = torch.optim.lr_scheduler.StepLR(optimizer, step_size=150, gamma=0.5)
 
 loss_log = {'total': [], 'sil': [], 'lap': [], 'edge': [], 'normal': []}
 frames   = []
@@ -199,18 +200,19 @@ for step in tqdm(range(NUM_ITER), desc='剪影优化'):
         with torch.no_grad():
             vis = renderer(new_mesh.extend(NUM_VIEWS), cameras=cameras)[..., 3]
 
-        fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+        n_v = len(VIS_VIEWS)
+        fig, axes = plt.subplots(2, n_v, figsize=(4 * n_v, 8))
         fig.suptitle(
-            f'迭代步数: {step}/{NUM_ITER} | '
-            f'总 Loss: {loss_total.item():.4f} | '
-            f'剪影误差: {loss_sil.item():.4f}'
+            f'Step {step}/{NUM_ITER}  |  Loss: {loss_total.item():.4f}  |  Sil: {loss_sil.item():.4f}',
+            fontsize=12,
         )
-        axes[0].imshow(target_sil[0].cpu().numpy(), cmap='gray')
-        axes[0].set_title('Ground Truth Silhouette')
-        axes[0].axis('off')
-        axes[1].imshow(vis[0].cpu().numpy(), cmap='gray')
-        axes[1].set_title(f'Optimizing... (Epoch {step})')
-        axes[1].axis('off')
+        for col, vi in enumerate(VIS_VIEWS):
+            axes[0, col].imshow(target_sil[vi].cpu().numpy(), cmap='gray')
+            axes[0, col].set_title(f'Target (view {vi})', fontsize=9)
+            axes[0, col].axis('off')
+            axes[1, col].imshow(vis[vi].cpu().numpy(), cmap='gray')
+            axes[1, col].set_title(f'Predicted (view {vi})', fontsize=9)
+            axes[1, col].axis('off')
         plt.tight_layout()
         p = f'{SAVE_DIR}/frame_{step:04d}.png'
         plt.savefig(p, dpi=100, bbox_inches='tight')
