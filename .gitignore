@@ -2,6 +2,8 @@ __pycache__/
 *.py[oc]
 .venv/
 uv.lock
-output/
+output/silhouette/frame_*.png
+output/texture/sil_[0-9]*.png
+output/texture/rgb_[0-9]*.png
 data/
 *.egg-info/
